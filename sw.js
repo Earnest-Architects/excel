@@ -1,4 +1,4 @@
-const C='excel-viewer-v3';
+const C='excel-viewer-v4';
 const ASSETS=['./','index.html','manifest.webmanifest','icon-192.png','icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'];

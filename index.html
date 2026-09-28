@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="id">
+<html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Excel Viewer</title>
+<title>Excel ビューア</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <meta name="theme-color" content="#0f6b3a">
@@ -28,7 +28,8 @@ main{flex:1;min-height:0;position:relative}
 #grid{position:absolute;inset:0;overflow:auto;background:#fff;color:#000;font:14.67px/18px Calibri,Carlito,"Segoe UI",sans-serif}
 table{border-collapse:separate;border-spacing:0;table-layout:fixed}
 td,th{padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-td{border-right:1px solid var(--gl,#d9d9d9);border-bottom:1px solid var(--gl,#d9d9d9);vertical-align:bottom}
+td{border-right:1px solid var(--gl,#000);border-bottom:1px solid var(--gl,#000);vertical-align:bottom;user-select:none}
+button:disabled{opacity:.45;cursor:default}
 table.ng{--gl:transparent}
 th{background:#f0f0f0;color:#555;font-weight:400;text-align:center;border-right:1px solid #cfcfcf;border-bottom:1px solid #cfcfcf;height:24px}
 thead th{position:sticky;top:0;z-index:4;font-weight:600}
@@ -38,6 +39,9 @@ td.fz{background:#fff}
 td.ov{overflow:visible;text-overflow:clip}
 td.n{text-align:right}td.b{text-align:center}
 td.hit{background:#ffe27a!important}td.cur{outline:2px solid var(--ac);outline-offset:-2px}
+td.sel{background-image:linear-gradient(rgba(15,107,58,.22),rgba(15,107,58,.22))}
+td.pa{box-shadow:inset 0 var(--pt,0) 0 0 #0f6b3a,inset var(--pl,0) 0 0 0 #0f6b3a,inset 0 var(--pb,0) 0 0 #0f6b3a,inset var(--pr,0) 0 0 0 #0f6b3a}
+td.pt{--pt:3px}td.pl{--pl:3px}td.pb{--pb:-3px}td.pr{--pr:-3px}
 #drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px}
 #drop h2{margin:0;font-size:22px}#drop p{margin:0;color:var(--mut);max-width:44ch}
 body.drag #drop,body.drag #grid{outline:3px dashed var(--ac);outline-offset:-10px}
@@ -56,7 +60,7 @@ footer button{border-radius:6px 6px 0 0;white-space:nowrap}
   #ptitle{display:block;font-weight:700;margin:0 0 6px}
   thead{display:table-header-group}
   thead th,tbody th{position:static}
-  td.hit{background:transparent!important}td.cur{outline:none}
+  td.hit{background:transparent!important}td.cur{outline:none}td.sel{background-image:none}td.pa{box-shadow:none}
   tr{break-inside:avoid}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
@@ -65,22 +69,24 @@ footer button{border-radius:6px 6px 0 0;white-space:nowrap}
 </head>
 <body>
 <header>
-  <h1>Excel Viewer</h1>
-  <button class="pri" id="open">Buka file</button>
+  <h1>Excel ビューア</h1>
+  <button class="pri" id="open">ファイルを開く</button>
   <span id="fn"></span><span id="warn" style="color:#c0392b"></span>
   <span class="sp"></span>
-  <input id="q" type="search" placeholder="Cari di sheet ini" aria-label="Cari" hidden>
+  <input id="q" type="search" placeholder="このシートを検索" aria-label="検索" hidden>
   <span id="cnt"></span>
-  <button id="fx" hidden title="Tampilkan rumus">Rumus</button>
-  <button id="zo" hidden aria-label="Perkecil">−</button><button id="zi" hidden aria-label="Perbesar">+</button>
-  <button id="csv" hidden>Ekspor CSV</button>
-  <button id="prt" hidden title="Cetak sheet ini (Ctrl+P)">Cetak</button>
+  <button id="fx" hidden title="数式を表示">数式</button>
+  <button id="zo" hidden aria-label="縮小">−</button><button id="zi" hidden aria-label="拡大">+</button>
+  <button id="csv" hidden>CSV出力</button>
+  <button id="pas" hidden title="セルをドラッグして範囲を選択（Shift+クリックで拡張）">印刷範囲を設定</button>
+  <button id="pac" hidden>印刷範囲を解除</button>
+  <button id="prt" hidden title="このシートを印刷 (Ctrl+P)">印刷</button>
 </header>
 <main>
   <div id="drop">
-    <h2>Seret file Excel ke sini</h2>
-    <p>Mendukung .xlsx, .xlsm, .xlsb, .xls, .ods, dan .csv. Warna, font, dan border terbaca untuk .xlsx/.xlsm; warna isi sel terbaca untuk .xls. File dibaca di browser dan tidak diunggah ke mana pun.</p>
-    <button class="pri" id="open2">Pilih file</button>
+    <h2>Excelファイルをここにドラッグ</h2>
+    <p>対応形式：.xlsx、.xlsm、.xlsb、.xls、.ods、.csv。.xlsx/.xlsm は色・フォント・罫線、.xls は塗りつぶし色を表示します。ファイルはブラウザ内で処理され、外部には送信されません。</p>
+    <button class="pri" id="open2">ファイルを選択</button>
   </div>
   <div id="ptitle"></div>
   <div id="grid" hidden></div>
@@ -93,7 +99,7 @@ footer button{border-radius:6px 6px 0 0;white-space:nowrap}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 const $=s=>document.querySelector(s);
-let wb=null,cur=null,showF=false,limit=1000,zoom=1,hits=[],hi=-1,styles=null,THEME=null;
+let wb=null,cur=null,showF=false,limit=1000,zoom=1,hits=[],hi=-1,styles=null,THEME=null,PA={},sel=null,anchor=null,last=null,drag=false,printing=false;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 /* ---------- Warna & gaya (ExcelJS) ---------- */
@@ -147,7 +153,7 @@ function cssOf(st){
 }
 /* Baca gaya langsung dari XML xlsx (tanpa library tambahan selain JSZip) */
 async function buildStyles(buf){
-  if(!window.JSZip)throw new Error('JSZip gagal dimuat');
+  if(!window.JSZip)throw new Error('JSZipを読み込めませんでした');
   const z=await JSZip.loadAsync(buf);
   const txt=async p=>{const f=z.file(p);return f?f.async('string'):null};
   const dom=async p=>{const t=await txt(p);return t?new DOMParser().parseFromString(t,'application/xml'):null};
@@ -196,15 +202,23 @@ async function openFile(f){
   try{
     buf=await f.arrayBuffer();
     wb=XLSX.read(buf,{cellDates:true,cellFormula:true,cellNF:true,cellStyles:true,sheetStubs:true});
-  }catch(e){alert('File tidak bisa dibaca: '+e.message);return}
+  }catch(e){alert('ファイルを読み込めません: '+e.message);return}
   styles=null;$('#cs').textContent='';$('#warn').textContent='';
   if(/\.(xlsx|xlsm)$/i.test(f.name)){
     try{styles=await buildStyles(buf)}
-    catch(e){console.warn(e);$('#warn').textContent='Warna tidak terbaca: '+e.message}
+    catch(e){console.warn(e);$('#warn').textContent='セルの色を読み込めません: '+e.message}
   }
-  $('#fn').textContent=f.name;document.title=f.name+' – Excel Viewer';
+  PA={};sel=null;anchor=null;
+  ((wb.Workbook&&wb.Workbook.Names)||[]).forEach(nm=>{   // 印刷範囲が設定済みのファイル
+    if(nm.Name!=='_xlnm.Print_Area'||nm.Sheet==null||!nm.Ref)return;
+    try{const g=XLSX.utils.decode_range(nm.Ref.split(',')[0].split('!').pop().replace(/\$/g,''));
+      if([g.s.r,g.s.c,g.e.r,g.e.c].some(isNaN))return;
+      PA[wb.SheetNames[nm.Sheet]]={r0:Math.max(0,g.s.r),c0:Math.max(0,g.s.c),r1:g.e.r<0?1048575:g.e.r,c1:g.e.c<0?16383:g.e.c};
+    }catch(e){}
+  });
+  $('#fn').textContent=f.name;document.title=f.name+' – Excel ビューア';
   $('#drop').hidden=true;$('#grid').hidden=false;$('#tabs').hidden=false;
-  ['#q','#fx','#zo','#zi','#csv','#prt'].forEach(s=>$(s).hidden=false);
+  ['#q','#fx','#zo','#zi','#csv','#prt','#pas'].forEach(s=>$(s).hidden=false);
   const tabs=$('#tabs');tabs.innerHTML='';
   wb.SheetNames.forEach((n,i)=>{
     if((wb.Workbook?.Sheets?.[i]?.Hidden|0)>0)return;
@@ -215,21 +229,23 @@ async function openFile(f){
 }
 
 function show(n){
-  cur=n;limit=1000;$('#q').value='';
+  cur=n;limit=1000;sel=null;anchor=null;$('#q').value='';
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.textContent===n));
   render();
 }
 
 function render(){
   const ws=wb.Sheets[cur],box=$('#grid'),q=$('#q').value.trim().toLowerCase();
-  if(!ws||!ws['!ref']){box.innerHTML='<p style="padding:20px;color:#888">Sheet ini kosong.</p>';$('#st').textContent='';return}
-  const rg=XLSX.utils.decode_range(ws['!ref']),cols=ws['!cols']||[],rows=ws['!rows']||[];
+  if(!ws||!ws['!ref']){box.innerHTML='<p style="padding:20px;color:#888">このシートは空です。</p>';$('#st').textContent='';return}
+  const full=XLSX.utils.decode_range(ws['!ref']),cols=ws['!cols']||[],rows=ws['!rows']||[];
+  const pa=printing&&PA[cur];
+  const rg=pa?{s:{r:Math.max(pa.r0,full.s.r),c:Math.max(pa.c0,full.s.c)},e:{r:Math.min(pa.r1,full.e.r),c:Math.min(pa.c1,full.e.c)}}:full;
   const S=styles&&styles[cur],sm=S?S.m:{},fzx=S?S.x:0,fzy=S?S.y:0,dw=S?S.dw:64,dh=S?S.dh:20;
   const cw=c=>{const k=cols[c];return (k&&(k.wpx||(k.wch&&k.wch*7+5)))||dw};
   const rh=r=>{const k=rows[r];return (k&&(k.hpx||(k.hpt&&k.hpt*4/3)))||dh};
-  const skip=new Set(),span={};
+  const skip=new Map(),span={};
   (ws['!merges']||[]).forEach(m=>{
-    for(let r=m.s.r;r<=m.e.r;r++)for(let c=m.s.c;c<=m.e.c;c++)skip.add(r+','+c);
+    for(let r=m.s.r;r<=m.e.r;r++)for(let c=m.s.c;c<=m.e.c;c++)skip.set(r+','+c,m.s.r+','+m.s.c);
     span[m.s.r+','+m.s.c]=[m.e.r-m.s.r+1,m.e.c-m.s.c+1];
   });
   const end=q?rg.e.r:Math.min(rg.e.r,rg.s.r+limit-1);
@@ -244,7 +260,10 @@ function render(){
     const fr=r<fzy;let tp=0;if(fr){tp=ta;ta+=rh(r)}
     h+=`<tr style="height:${rh(r)}px"><th${fr?` style="top:${tp}px;z-index:3"`:''}>${r+1}</th>`;
     for(const c of vis){
-      const key=r+','+c;if(skip.has(key)&&!span[key])continue;
+      const key=r+','+c,mk=skip.get(key);
+      if(mk&&mk!==key){const [mr,mc]=mk.split(',').map(Number);
+        if(mr<rg.s.r||mc<rg.s.c||(rows[mr]&&rows[mr].hidden)||(cols[mc]&&cols[mc].hidden))h+='<td></td>';
+        continue}
       const cell=ws[XLSX.utils.encode_cell({r,c})];
       let t='';
       if(cell)t=(showF&&cell.f)?'='+cell.f:(cell.w!=null?cell.w:String(cell.v??''));
@@ -258,18 +277,48 @@ function render(){
       if(fr||fc){stl.push('position:sticky');if(fr)stl.push(`top:${tp}px`);if(fc)stl.push(`left:${left[c]}px`);stl.push(`z-index:${fr&&fc?2:1}`)}
       if(xs)stl.push(xs);
       const st=stl.length?` style="${stl.join(';')}"`:'';
-      const sp=span[key]?` rowspan=${span[key][0]} colspan=${span[key][1]}`:'';
-      h+=`<td${cls?` class="${cls}"`:''}${sp}${st}>${esc(t)}</td>`;
+      let sp='';if(span[key]){const cs=vis.filter(x=>x>=c&&x<c+span[key][1]).length;sp=` rowspan=${Math.min(span[key][0],rg.e.r-r+1)} colspan=${Math.max(1,cs)}`}
+      h+=`<td${cls?` class="${cls}"`:''}${sp}${st} data-r="${r}" data-c="${c}">${esc(t)}</td>`;
     }
     h+='</tr>';
   }
   h+='</tbody></table>';
-  if(end<rg.e.r)h+=`<button class="more" onclick="limit+=2000;render()">Tampilkan 2.000 baris lagi (${(rg.e.r-end).toLocaleString('id')} tersisa)</button>`;
+  if(end<rg.e.r)h+=`<button class="more" onclick="limit+=2000;render()">さらに2,000行を表示（残り${(rg.e.r-end).toLocaleString('ja')}行）</button>`;
   box.innerHTML=h;box.style.zoom=zoom;
-  $('#st').textContent=`${(rg.e.r-rg.s.r+1).toLocaleString('id')} baris × ${vis.length} kolom · ${Math.round(zoom*100)}%`;
+  const a=PA[cur];
+  $('#st').textContent=`${(full.e.r-full.s.r+1).toLocaleString('ja')}行 × ${full.e.c-full.s.c+1}列 · ${Math.round(zoom*100)}%`+(a?` · 印刷範囲 ${XLSX.utils.encode_range({s:{r:a.r0,c:a.c0},e:{r:Math.min(a.r1,full.e.r),c:Math.min(a.c1,full.e.c)}})}`:'');
   hits=[...box.querySelectorAll('td.hit')];hi=-1;
-  $('#cnt').textContent=q?(hits.length+' cocok'):'';
+  $('#cnt').textContent=q?(hits.length+'件一致'):'';
+  paint();
 }
+
+function paint(){
+  const a=PA[cur],s=sel,inR=(R,r,c)=>!!R&&r>=R.r0&&r<=R.r1&&c>=R.c0&&c<=R.c1;
+  document.querySelectorAll('#grid td[data-r]').forEach(td=>{
+    const r=+td.dataset.r,c=+td.dataset.c,ia=inR(a,r,c),L=td.classList;
+    L.toggle('sel',inR(s,r,c));L.toggle('pa',ia);
+    L.toggle('pt',ia&&r===a.r0);L.toggle('pb',ia&&r===a.r1);L.toggle('pl',ia&&c===a.c0);L.toggle('pr',ia&&c===a.c1);
+  });
+  $('#pas').disabled=!s;$('#pac').hidden=!a||$('#grid').hidden;
+}
+function setSel(p){
+  sel={r0:Math.min(anchor.r,p.r),c0:Math.min(anchor.c,p.c),r1:Math.max(anchor.r,p.r),c1:Math.max(anchor.c,p.c)};
+  last=p;cancelAnimationFrame(window._raf);window._raf=requestAnimationFrame(paint);
+}
+const cellOf=t=>{const td=t.closest&&t.closest('td[data-r]');return td?{r:+td.dataset.r,c:+td.dataset.c}:null};
+$('#grid').addEventListener('mousedown',e=>{
+  if(e.button!==0)return;const p=cellOf(e.target);if(!p)return;
+  if(e.shiftKey&&anchor)setSel(p);else{anchor=p;setSel(p)}
+  drag=true;
+});
+$('#grid').addEventListener('mouseover',e=>{
+  if(!drag)return;const p=cellOf(e.target);
+  if(p&&(!last||p.r!==last.r||p.c!==last.c))setSel(p);
+});
+addEventListener('mouseup',()=>{drag=false});
+addEventListener('keydown',e=>{if(e.key==='Escape'&&sel){sel=null;anchor=null;paint()}});
+$('#pas').onclick=()=>{if(!sel)return;PA[cur]={...sel};sel=null;anchor=null;render()};
+$('#pac').onclick=()=>{delete PA[cur];render()};
 
 function nextHit(){
   if(!hits.length)return;
@@ -298,14 +347,15 @@ addEventListener('drop',e=>{e.preventDefault();document.body.classList.remove('d
 $('#prt').onclick=()=>window.print();
 addEventListener('beforeprint',()=>{
   const ws=wb&&wb.Sheets[cur];if(!ws||!ws['!ref'])return;
-  $('#ptitle').textContent=$('#fn').textContent+' – '+cur;
-  limit=20000;render();
+  const a=PA[cur],g=XLSX.utils.decode_range(ws['!ref']);
+  $('#ptitle').textContent=$('#fn').textContent+' – '+cur+(a?'（印刷範囲 '+XLSX.utils.encode_range({s:{r:a.r0,c:a.c0},e:{r:Math.min(a.r1,g.e.r),c:Math.min(a.c1,g.e.c)}})+'）':'');
+  printing=true;limit=20000;render();
   const w=[...document.querySelectorAll('#grid col')].reduce((a,c)=>a+parseFloat(c.style.width),0);
   const land=w>700;
   $('#pg').textContent='@page{size:A4 '+(land?'landscape':'portrait')+';margin:10mm}';
   $('#grid').style.zoom=Math.min(1,(land?1030:690)/w);
 });
-addEventListener('afterprint',()=>{if(!wb)return;limit=1000;render()});
+addEventListener('afterprint',()=>{if(!wb)return;printing=false;limit=1000;render()});
 
 // Buka file langsung dari Explorer setelah aplikasi ter-install
 if('launchQueue' in window)launchQueue.setConsumer(async p=>{if(p.files.length)openFile(await p.files[0].getFile())});
