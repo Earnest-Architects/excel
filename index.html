@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Excel Viewer</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#0f6b3a">
+<style>
+:root{--bg:#f3f4f2;--fg:#1c2220;--pn:#fff;--bd:#d6dbd7;--hd:#e8ece9;--ac:#0f6b3a;--hit:#ffe27a;--mut:#6b7570}
+@media(prefers-color-scheme:dark){:root{--bg:#141816;--fg:#e4e9e6;--pn:#1c211f;--bd:#333b37;--hd:#262d2a;--ac:#3fb573;--hit:#6b5a10;--mut:#8f9a94}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font:14px/1.4 "Segoe UI",system-ui,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px;background:var(--pn);border-bottom:1px solid var(--bd)}
+h1{font-size:15px;margin:0 8px 0 0;color:var(--ac);font-weight:700}
+#fn{color:var(--mut);max-width:28ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp{flex:1}
+button,input{font:inherit;color:inherit;background:var(--pn);border:1px solid var(--bd);border-radius:6px;padding:5px 10px}
+button{cursor:pointer}button:hover{background:var(--hd)}
+button.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+#q{width:190px}#cnt{color:var(--mut);min-width:6ch}
+main{flex:1;min-height:0;position:relative}
+#grid{position:absolute;inset:0;overflow:auto;background:var(--pn)}
+table{border-collapse:separate;border-spacing:0;table-layout:fixed}
+td,th{border-right:1px solid var(--bd);border-bottom:1px solid var(--bd);padding:2px 6px;height:24px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+thead th{position:sticky;top:0;background:var(--hd);z-index:2;font-weight:600;text-align:center;color:var(--mut)}
+tbody th{position:sticky;left:0;background:var(--hd);z-index:1;text-align:center;font-weight:400;color:var(--mut)}
+thead th:first-child{left:0;z-index:3}
+td.n{text-align:right;font-variant-numeric:tabular-nums}td.b{text-align:center}
+td.hit{background:var(--hit)}td.cur{outline:2px solid var(--ac);outline-offset:-2px}
+#drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px}
+#drop h2{margin:0;font-size:22px}#drop p{margin:0;color:var(--mut);max-width:44ch}
+body.drag #drop,body.drag #grid{outline:3px dashed var(--ac);outline-offset:-10px}
+footer{display:flex;gap:4px;align-items:center;padding:4px 8px;background:var(--pn);border-top:1px solid var(--bd);overflow-x:auto}
+footer button{border-radius:6px 6px 0 0;white-space:nowrap}
+#st{margin-left:auto;color:var(--mut);white-space:nowrap;padding-left:12px}
+.more{margin:10px}
+[hidden]{display:none!important}
+#ptitle{display:none}
+@media print{
+  header,footer,#drop,.more{display:none!important}
+  html,body{height:auto;background:#fff;color:#000}
+  body{display:block}
+  main{position:static}
+  #grid{position:static;overflow:visible;background:#fff}
+  #ptitle{display:block;font-weight:700;margin:0 0 6px}
+  thead{display:table-header-group}
+  thead th,tbody th{position:static;background:#eee!important;color:#000}
+  td,th{border-color:#999;color:#000}
+  td,td.hit,td.cur{background:#fff!important;outline:none}
+  tr{break-inside:avoid}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Excel Viewer</h1>
+  <button class="pri" id="open">Buka file</button>
+  <span id="fn"></span>
+  <span class="sp"></span>
+  <input id="q" type="search" placeholder="Cari di sheet ini" aria-label="Cari" hidden>
+  <span id="cnt"></span>
+  <button id="fx" hidden title="Tampilkan rumus">Rumus</button>
+  <button id="zo" hidden aria-label="Perkecil">−</button><button id="zi" hidden aria-label="Perbesar">+</button>
+  <button id="csv" hidden>Ekspor CSV</button>
+  <button id="prt" hidden title="Cetak sheet ini (Ctrl+P)">Cetak</button>
+</header>
+<main>
+  <div id="drop">
+    <h2>Seret file Excel ke sini</h2>
+    <p>Mendukung .xlsx, .xlsm, .xlsb, .xls, .ods, dan .csv. File dibaca langsung di browser dan tidak diunggah ke mana pun.</p>
+    <button class="pri" id="open2">Pilih file</button>
+  </div>
+  <div id="ptitle"></div>
+  <div id="grid" hidden></div>
+  <style id="pg"></style>
+</main>
+<footer id="tabs" hidden></footer>
+<input type="file" id="file" accept=".xlsx,.xlsm,.xlsb,.xls,.ods,.csv,.tsv" hidden>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+let wb=null,cur=null,showF=false,limit=1000,zoom=1,hits=[],hi=-1;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function openFile(f){
+  try{
+    const buf=await f.arrayBuffer();
+    wb=XLSX.read(buf,{cellDates:true,cellFormula:true,cellNF:true});
+  }catch(e){alert('File tidak bisa dibaca: '+e.message);return}
+  $('#fn').textContent=f.name;document.title=f.name+' – Excel Viewer';
+  $('#drop').hidden=true;$('#grid').hidden=false;$('#tabs').hidden=false;
+  ['#q','#fx','#zo','#zi','#csv','#prt'].forEach(s=>$(s).hidden=false);
+  const tabs=$('#tabs');tabs.innerHTML='';
+  wb.SheetNames.forEach((n,i)=>{
+    if((wb.Workbook?.Sheets?.[i]?.Hidden|0)>0)return;
+    const b=document.createElement('button');b.textContent=n;b.onclick=()=>show(n);tabs.append(b);
+  });
+  const st=document.createElement('span');st.id='st';tabs.append(st);
+  show(wb.SheetNames.find((n,i)=>!(wb.Workbook?.Sheets?.[i]?.Hidden|0))||wb.SheetNames[0]);
+}
+
+function show(n){
+  cur=n;limit=1000;$('#q').value='';
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.textContent===n));
+  render();
+}
+
+function render(){
+  const ws=wb.Sheets[cur],box=$('#grid'),q=$('#q').value.trim().toLowerCase();
+  if(!ws||!ws['!ref']){box.innerHTML='<p style="padding:20px;color:var(--mut)">Sheet ini kosong.</p>';$('#st').textContent='';return}
+  const rg=XLSX.utils.decode_range(ws['!ref']),cols=ws['!cols']||[],rows=ws['!rows']||[];
+  const skip=new Set(),span={};
+  (ws['!merges']||[]).forEach(m=>{
+    for(let r=m.s.r;r<=m.e.r;r++)for(let c=m.s.c;c<=m.e.c;c++)skip.add(r+','+c);
+    span[m.s.r+','+m.s.c]=[m.e.r-m.s.r+1,m.e.c-m.s.c+1];
+  });
+  const end=q?rg.e.r:Math.min(rg.e.r,rg.s.r+limit-1);
+  const vis=[];for(let c=rg.s.c;c<=rg.e.c;c++)if(!(cols[c]&&cols[c].hidden))vis.push(c);
+  let h='<table><colgroup><col style="width:52px">';
+  vis.forEach(c=>{const k=cols[c];h+=`<col style="width:${(k&&(k.wpx||(k.wch&&k.wch*8+12)))||96}px">`});
+  h+='</colgroup><thead><tr><th></th>'+vis.map(c=>`<th>${XLSX.utils.encode_col(c)}</th>`).join('')+'</tr></thead><tbody>';
+  for(let r=rg.s.r;r<=end;r++){
+    if(rows[r]&&rows[r].hidden)continue;
+    h+=`<tr><th>${r+1}</th>`;
+    for(const c of vis){
+      const key=r+','+c;if(skip.has(key)&&!span[key])continue;
+      const cell=ws[XLSX.utils.encode_cell({r,c})];
+      let t='';
+      if(cell)t=(showF&&cell.f)?'='+cell.f:(cell.w!=null?cell.w:String(cell.v??''));
+      const cls=[cell&&cell.t==='n'&&!(showF&&cell.f)?'n':'',cell&&cell.t==='b'?'b':'',q&&t.toLowerCase().includes(q)?'hit':''].filter(Boolean).join(' ');
+      const sp=span[key]?` rowspan=${span[key][0]} colspan=${span[key][1]}`:'';
+      h+=`<td${cls?` class="${cls}"`:''}${sp} title="${esc(t)}">${esc(t)}</td>`;
+    }
+    h+='</tr>';
+  }
+  h+='</tbody></table>';
+  if(end<rg.e.r)h+=`<button class="more" onclick="limit+=2000;render()">Tampilkan 2.000 baris lagi (${(rg.e.r-end).toLocaleString('id')} tersisa)</button>`;
+  box.innerHTML=h;box.style.zoom=zoom;
+  $('#st').textContent=`${(rg.e.r-rg.s.r+1).toLocaleString('id')} baris × ${vis.length} kolom · ${Math.round(zoom*100)}%`;
+  hits=[...box.querySelectorAll('td.hit')];hi=-1;
+  $('#cnt').textContent=q?(hits.length+' cocok'):'';
+}
+
+function nextHit(){
+  if(!hits.length)return;
+  hits[hi]?.classList.remove('cur');hi=(hi+1)%hits.length;
+  hits[hi].classList.add('cur');hits[hi].scrollIntoView({block:'center',inline:'center'});
+  $('#cnt').textContent=`${hi+1}/${hits.length}`;
+}
+
+$('#open').onclick=$('#open2').onclick=()=>$('#file').click();
+$('#file').onchange=e=>{if(e.target.files[0])openFile(e.target.files[0]);e.target.value=''};
+$('#q').oninput=()=>{clearTimeout(window._t);window._t=setTimeout(render,250)};
+$('#q').onkeydown=e=>{if(e.key==='Enter')nextHit()};
+$('#fx').onclick=e=>{showF=!showF;e.target.classList.toggle('on',showF);render()};
+$('#zi').onclick=()=>{zoom=Math.min(2,zoom+.1);render()};
+$('#zo').onclick=()=>{zoom=Math.max(.5,zoom-.1);render()};
+$('#csv').onclick=()=>{
+  const csv='\ufeff'+XLSX.utils.sheet_to_csv(wb.Sheets[cur]);
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=cur+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+};
+addEventListener('dragover',e=>{e.preventDefault();document.body.classList.add('drag')});
+addEventListener('dragleave',e=>{if(!e.relatedTarget)document.body.classList.remove('drag')});
+addEventListener('drop',e=>{e.preventDefault();document.body.classList.remove('drag');const f=e.dataTransfer.files[0];if(f)openFile(f)});
+
+// Cetak: muat semua baris (maks 20.000), skala otomatis agar lebar muat di kertas
+$('#prt').onclick=()=>window.print();
+addEventListener('beforeprint',()=>{
+  const ws=wb&&wb.Sheets[cur];if(!ws||!ws['!ref'])return;
+  $('#ptitle').textContent=$('#fn').textContent+' – '+cur;
+  limit=20000;render();
+  const w=[...document.querySelectorAll('#grid col')].reduce((a,c)=>a+parseFloat(c.style.width),0);
+  const land=w>700;
+  $('#pg').textContent='@page{size:A4 '+(land?'landscape':'portrait')+';margin:10mm}';
+  $('#grid').style.zoom=Math.min(1,(land?1030:690)/w);
+});
+addEventListener('afterprint',()=>{if(!wb)return;limit=1000;render()});
+
+// Buka file langsung dari Explorer setelah aplikasi ter-install
+if('launchQueue' in window)launchQueue.setConsumer(async p=>{if(p.files.length)openFile(await p.files[0].getFile())});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
