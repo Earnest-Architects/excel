@@ -8,8 +8,8 @@
 <link rel="icon" href="icon-192.png">
 <meta name="theme-color" content="#0f6b3a">
 <style>
-:root{--bg:#f3f4f2;--fg:#1c2220;--pn:#fff;--bd:#d6dbd7;--hd:#e8ece9;--ac:#0f6b3a;--hit:#ffe27a;--mut:#6b7570}
-@media(prefers-color-scheme:dark){:root{--bg:#141816;--fg:#e4e9e6;--pn:#1c211f;--bd:#333b37;--hd:#262d2a;--ac:#3fb573;--hit:#6b5a10;--mut:#8f9a94}}
+:root{--bg:#f3f4f2;--fg:#1c2220;--pn:#fff;--bd:#d6dbd7;--hd:#e8ece9;--ac:#0f6b3a;--mut:#6b7570}
+@media(prefers-color-scheme:dark){:root{--bg:#141816;--fg:#e4e9e6;--pn:#1c211f;--bd:#333b37;--hd:#262d2a;--ac:#3fb573;--mut:#8f9a94}}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font:14px/1.4 "Segoe UI",system-ui,sans-serif}
@@ -24,14 +24,20 @@ button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 :focus-visible{outline:2px solid var(--ac);outline-offset:1px}
 #q{width:190px}#cnt{color:var(--mut);min-width:6ch}
 main{flex:1;min-height:0;position:relative}
-#grid{position:absolute;inset:0;overflow:auto;background:var(--pn)}
+/* Area sheet selalu terang seperti Excel agar warna file tampil apa adanya */
+#grid{position:absolute;inset:0;overflow:auto;background:#fff;color:#000;font:14.67px/18px Calibri,Carlito,"Segoe UI",sans-serif}
 table{border-collapse:separate;border-spacing:0;table-layout:fixed}
-td,th{border-right:1px solid var(--bd);border-bottom:1px solid var(--bd);padding:2px 6px;height:24px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-thead th{position:sticky;top:0;background:var(--hd);z-index:2;font-weight:600;text-align:center;color:var(--mut)}
-tbody th{position:sticky;left:0;background:var(--hd);z-index:1;text-align:center;font-weight:400;color:var(--mut)}
-thead th:first-child{left:0;z-index:3}
-td.n{text-align:right;font-variant-numeric:tabular-nums}td.b{text-align:center}
-td.hit{background:var(--hit)}td.cur{outline:2px solid var(--ac);outline-offset:-2px}
+td,th{padding:0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+td{border-right:1px solid var(--gl,#d9d9d9);border-bottom:1px solid var(--gl,#d9d9d9);vertical-align:bottom}
+table.ng{--gl:transparent}
+th{background:#f0f0f0;color:#555;font-weight:400;text-align:center;border-right:1px solid #cfcfcf;border-bottom:1px solid #cfcfcf;height:24px}
+thead th{position:sticky;top:0;z-index:4;font-weight:600}
+thead th:first-child{left:0;z-index:5}
+tbody th{position:sticky;left:0;z-index:3}
+td.fz{background:#fff}
+td.ov{overflow:visible;text-overflow:clip}
+td.n{text-align:right}td.b{text-align:center}
+td.hit{background:#ffe27a!important}td.cur{outline:2px solid var(--ac);outline-offset:-2px}
 #drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px}
 #drop h2{margin:0;font-size:22px}#drop p{margin:0;color:var(--mut);max-width:44ch}
 body.drag #drop,body.drag #grid{outline:3px dashed var(--ac);outline-offset:-10px}
@@ -46,16 +52,16 @@ footer button{border-radius:6px 6px 0 0;white-space:nowrap}
   html,body{height:auto;background:#fff;color:#000}
   body{display:block}
   main{position:static}
-  #grid{position:static;overflow:visible;background:#fff}
+  #grid{position:static;overflow:visible}
   #ptitle{display:block;font-weight:700;margin:0 0 6px}
   thead{display:table-header-group}
-  thead th,tbody th{position:static;background:#eee!important;color:#000}
-  td,th{border-color:#999;color:#000}
-  td,td.hit,td.cur{background:#fff!important;outline:none}
+  thead th,tbody th{position:static}
+  td.hit{background:transparent!important}td.cur{outline:none}
   tr{break-inside:avoid}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 </style>
+<style id="cs"></style>
 </head>
 <body>
 <header>
@@ -73,7 +79,7 @@ footer button{border-radius:6px 6px 0 0;white-space:nowrap}
 <main>
   <div id="drop">
     <h2>Seret file Excel ke sini</h2>
-    <p>Mendukung .xlsx, .xlsm, .xlsb, .xls, .ods, dan .csv. File dibaca langsung di browser dan tidak diunggah ke mana pun.</p>
+    <p>Mendukung .xlsx, .xlsm, .xlsb, .xls, .ods, dan .csv. Warna, font, dan border terbaca untuk .xlsx/.xlsm. File dibaca di browser dan tidak diunggah ke mana pun.</p>
     <button class="pri" id="open2">Pilih file</button>
   </div>
   <div id="ptitle"></div>
@@ -84,16 +90,98 @@ footer button{border-radius:6px 6px 0 0;white-space:nowrap}
 <input type="file" id="file" accept=".xlsx,.xlsm,.xlsb,.xls,.ods,.csv,.tsv" hidden>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 const $=s=>document.querySelector(s);
-let wb=null,cur=null,showF=false,limit=1000,zoom=1,hits=[],hi=-1;
+let wb=null,cur=null,showF=false,limit=1000,zoom=1,hits=[],hi=-1,styles=null,THEME=null;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-async function openFile(f){
+/* ---------- Warna & gaya (ExcelJS) ---------- */
+const IDX='000000 FFFFFF FF0000 00FF00 0000FF FFFF00 FF00FF 00FFFF 000000 FFFFFF FF0000 00FF00 0000FF FFFF00 FF00FF 00FFFF 800000 008000 000080 808000 800080 008080 C0C0C0 808080 9999FF 993366 FFFFCC CCFFFF 660066 FF8080 0066CC CCCCFF 000080 FF00FF FFFF00 00FFFF 800080 800000 008080 0000FF 00CCFF CCFFFF CCFFCC FFFF99 99CCFF FF99CC CC99FF FFCC99 3366FF 33CCCC 99CC00 FFCC00 FF9900 FF6600 666699 969696 003366 339966 003300 333300 993300 993366 333399 333333 000000 FFFFFF'.split(' ');
+const BW={thin:'1px solid',medium:'2px solid',thick:'3px solid',dashed:'1px dashed',dotted:'1px dotted',hair:'1px dotted',double:'3px double',mediumDashed:'2px dashed',dashDot:'1px dashed',mediumDashDot:'2px dashed',dashDotDot:'1px dashed',slantDashDot:'2px dashed',mediumDashDotDot:'2px dashed'};
+
+function themeColors(xw){
+  const def='FFFFFF 000000 E7E6E6 44546A 4472C4 ED7D31 A5A5A5 FFC000 5B9BD5 70AD47 0563C1 954F72'.split(' ');
   try{
-    const buf=await f.arrayBuffer();
-    wb=XLSX.read(buf,{cellDates:true,cellFormula:true,cellNF:true});
+    const th=xw._themes||(xw.model&&xw.model.themes);
+    const xml=th&&Object.values(th).find(v=>typeof v==='string');
+    if(xml){
+      const names=['lt1','dk1','lt2','dk2','accent1','accent2','accent3','accent4','accent5','accent6','hlink','folHlink'];
+      return names.map((n,i)=>{const m=xml.match(new RegExp('<a:'+n+'>[\\s\\S]*?(?:srgbClr val="|lastClr=")([0-9A-Fa-f]{6})'));return m?m[1]:def[i]});
+    }
+  }catch(e){}
+  return def;
+}
+function tint(hex,t){
+  const r=parseInt(hex.slice(0,2),16)/255,g=parseInt(hex.slice(2,4),16)/255,b=parseInt(hex.slice(4,6),16)/255;
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let h=0,s=0,l=(mx+mn)/2;
+  if(mx!==mn){const d=mx-mn;s=l>.5?d/(2-mx-mn):d/(mx+mn);h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;h/=6}
+  l=t<0?l*(1+t):l*(1-t)+t;
+  const hue=(p,q,x)=>{if(x<0)x+=1;if(x>1)x-=1;return x<1/6?p+(q-p)*6*x:x<.5?q:x<2/3?p+(q-p)*(2/3-x)*6:p};
+  let R,G,B;
+  if(!s)R=G=B=l;else{const q=l<.5?l*(1+s):l+s-l*s,p=2*l-q;R=hue(p,q,h+1/3);G=hue(p,q,h);B=hue(p,q,h-1/3)}
+  return [R,G,B].map(v=>Math.round(v*255).toString(16).padStart(2,'0')).join('');
+}
+function rgbOf(c){
+  if(!c)return null;let hex=null;
+  if(c.argb)hex=String(c.argb).slice(-6);
+  else if(c.theme!=null)hex=THEME[c.theme];
+  else if(c.indexed!=null)hex=IDX[c.indexed];
+  if(!hex)return null;
+  if(c.tint)hex=tint(hex,c.tint);
+  return '#'+hex;
+}
+function cssOf(st){
+  const o=[],f=st.font||{},a=st.alignment||{},bd=st.border||{};
+  if(f.bold)o.push('font-weight:700');
+  if(f.italic)o.push('font-style:italic');
+  const td=[f.underline?'underline':'',f.strike?'line-through':''].filter(Boolean).join(' ');
+  if(td)o.push('text-decoration:'+td);
+  if(f.size)o.push('font-size:'+(f.size*4/3).toFixed(1)+'px');
+  if(f.name)o.push(`font-family:"${String(f.name).replace(/"/g,'')}",Calibri,Carlito,"Segoe UI",sans-serif`);
+  const fc=rgbOf(f.color);if(fc)o.push('color:'+fc);
+  const fl=st.fill;
+  if(fl&&fl.type==='pattern'&&fl.pattern==='solid'){const b=rgbOf(fl.fgColor);if(b)o.push('background:'+b)}
+  const H={left:'left',center:'center',right:'right',justify:'justify',centerContinuous:'center',fill:'left'};
+  if(H[a.horizontal])o.push('text-align:'+H[a.horizontal]);
+  const V={top:'top',middle:'middle',bottom:'bottom'};
+  if(V[a.vertical])o.push('vertical-align:'+V[a.vertical]);
+  if(a.wrapText)o.push('white-space:normal;word-break:break-word;text-overflow:clip');
+  if(a.indent)o.push('padding-left:'+(4+a.indent*9)+'px');
+  ['top','left','bottom','right'].forEach(k=>{const b=bd[k];if(b&&BW[b.style])o.push(`border-${k}:${BW[b.style]} ${rgbOf(b.color)||'#000'}`)});
+  return {css:o.join(';'),wrap:!!a.wrapText};
+}
+function buildStyles(xw){
+  THEME=themeColors(xw);
+  const ids=new Map(),rules=[],res={};
+  xw.worksheets.forEach(ws=>{
+    const m={},wr=new Set(),v=(ws.views&&ws.views[0])||{},p=ws.properties||{};
+    ws.eachRow({includeEmpty:true},(row,rn)=>row.eachCell({includeEmpty:true},(cell,cn)=>{
+      const x=cssOf(cell.style||{});if(!x.css)return;
+      let i=ids.get(x.css);
+      if(i==null){i=ids.size;ids.set(x.css,i);rules.push(`td.s${i}{${x.css}}`)}
+      m[(rn-1)+','+(cn-1)]=i;if(x.wrap)wr.add(i);
+    }));
+    res[ws.name]={m,wr,grid:v.showGridLines!==false,
+      x:v.state==='frozen'?(v.xSplit||0):0,y:v.state==='frozen'?(v.ySplit||0):0,
+      dw:p.defaultColWidth?p.defaultColWidth*7+5:64,dh:p.defaultRowHeight?p.defaultRowHeight*4/3:20};
+  });
+  $('#cs').textContent=rules.join('\n');
+  return res;
+}
+
+/* ---------- Buka file ---------- */
+async function openFile(f){
+  let buf;
+  try{
+    buf=await f.arrayBuffer();
+    wb=XLSX.read(buf,{cellDates:true,cellFormula:true,cellNF:true,cellStyles:true});
   }catch(e){alert('File tidak bisa dibaca: '+e.message);return}
+  styles=null;$('#cs').textContent='';
+  if(/\.(xlsx|xlsm)$/i.test(f.name)&&window.ExcelJS){
+    try{const xw=new ExcelJS.Workbook();await xw.xlsx.load(buf);styles=buildStyles(xw)}
+    catch(e){console.warn('Gaya sel tidak terbaca:',e)}
+  }
   $('#fn').textContent=f.name;document.title=f.name+' – Excel Viewer';
   $('#drop').hidden=true;$('#grid').hidden=false;$('#tabs').hidden=false;
   ['#q','#fx','#zo','#zi','#csv','#prt'].forEach(s=>$(s).hidden=false);
@@ -114,8 +202,11 @@ function show(n){
 
 function render(){
   const ws=wb.Sheets[cur],box=$('#grid'),q=$('#q').value.trim().toLowerCase();
-  if(!ws||!ws['!ref']){box.innerHTML='<p style="padding:20px;color:var(--mut)">Sheet ini kosong.</p>';$('#st').textContent='';return}
+  if(!ws||!ws['!ref']){box.innerHTML='<p style="padding:20px;color:#888">Sheet ini kosong.</p>';$('#st').textContent='';return}
   const rg=XLSX.utils.decode_range(ws['!ref']),cols=ws['!cols']||[],rows=ws['!rows']||[];
+  const S=styles&&styles[cur],sm=S?S.m:{},fzx=S?S.x:0,fzy=S?S.y:0,dw=S?S.dw:64,dh=S?S.dh:20;
+  const cw=c=>{const k=cols[c];return (k&&(k.wpx||(k.wch&&k.wch*7+5)))||dw};
+  const rh=r=>{const k=rows[r];return (k&&(k.hpx||(k.hpt&&k.hpt*4/3)))||dh};
   const skip=new Set(),span={};
   (ws['!merges']||[]).forEach(m=>{
     for(let r=m.s.r;r<=m.e.r;r++)for(let c=m.s.c;c<=m.e.c;c++)skip.add(r+','+c);
@@ -123,20 +214,28 @@ function render(){
   });
   const end=q?rg.e.r:Math.min(rg.e.r,rg.s.r+limit-1);
   const vis=[];for(let c=rg.s.c;c<=rg.e.c;c++)if(!(cols[c]&&cols[c].hidden))vis.push(c);
-  let h='<table><colgroup><col style="width:52px">';
-  vis.forEach(c=>{const k=cols[c];h+=`<col style="width:${(k&&(k.wpx||(k.wch&&k.wch*8+12)))||96}px">`});
+  const left={};let la=52;for(const c of vis)if(c<fzx){left[c]=la;la+=cw(c)}
+  let ta=24;
+  let h=`<table class="${S&&!S.grid?'ng':''}"><colgroup><col style="width:52px">`;
+  vis.forEach(c=>{h+=`<col style="width:${cw(c)}px">`});
   h+='</colgroup><thead><tr><th></th>'+vis.map(c=>`<th>${XLSX.utils.encode_col(c)}</th>`).join('')+'</tr></thead><tbody>';
   for(let r=rg.s.r;r<=end;r++){
     if(rows[r]&&rows[r].hidden)continue;
-    h+=`<tr><th>${r+1}</th>`;
+    const fr=r<fzy;let tp=0;if(fr){tp=ta;ta+=rh(r)}
+    h+=`<tr style="height:${rh(r)}px"><th${fr?` style="top:${tp}px;z-index:3"`:''}>${r+1}</th>`;
     for(const c of vis){
       const key=r+','+c;if(skip.has(key)&&!span[key])continue;
       const cell=ws[XLSX.utils.encode_cell({r,c})];
       let t='';
       if(cell)t=(showF&&cell.f)?'='+cell.f:(cell.w!=null?cell.w:String(cell.v??''));
-      const cls=[cell&&cell.t==='n'&&!(showF&&cell.f)?'n':'',cell&&cell.t==='b'?'b':'',q&&t.toLowerCase().includes(q)?'hit':''].filter(Boolean).join(' ');
+      const si=sm[key],fc=c<fzx;
+      const nx=ws[XLSX.utils.encode_cell({r,c:c+1})];
+      const ov=cell&&cell.t==='s'&&t&&c<rg.e.c&&!(nx&&nx.v!=null&&nx.v!=='')&&!(S&&S.wr.has(si))&&!span[key];
+      const cls=[cell&&cell.t==='n'&&!(showF&&cell.f)?'n':'',cell&&cell.t==='b'?'b':'',
+        q&&t.toLowerCase().includes(q)?'hit':'',ov?'ov':'',(fr||fc)?'fz':'',si!=null?'s'+si:''].filter(Boolean).join(' ');
+      const st=(fr||fc)?` style="position:sticky;${fr?`top:${tp}px;`:''}${fc?`left:${left[c]}px;`:''}z-index:${fr&&fc?2:1}"`:'';
       const sp=span[key]?` rowspan=${span[key][0]} colspan=${span[key][1]}`:'';
-      h+=`<td${cls?` class="${cls}"`:''}${sp} title="${esc(t)}">${esc(t)}</td>`;
+      h+=`<td${cls?` class="${cls}"`:''}${sp}${st}>${esc(t)}</td>`;
     }
     h+='</tr>';
   }
