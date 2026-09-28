@@ -67,7 +67,7 @@ footer button{border-radius:6px 6px 0 0;white-space:nowrap}
 <header>
   <h1>Excel Viewer</h1>
   <button class="pri" id="open">Buka file</button>
-  <span id="fn"></span>
+  <span id="fn"></span><span id="warn" style="color:#c0392b"></span>
   <span class="sp"></span>
   <input id="q" type="search" placeholder="Cari di sheet ini" aria-label="Cari" hidden>
   <span id="cnt"></span>
@@ -79,7 +79,7 @@ footer button{border-radius:6px 6px 0 0;white-space:nowrap}
 <main>
   <div id="drop">
     <h2>Seret file Excel ke sini</h2>
-    <p>Mendukung .xlsx, .xlsm, .xlsb, .xls, .ods, dan .csv. Warna, font, dan border terbaca untuk .xlsx/.xlsm. File dibaca di browser dan tidak diunggah ke mana pun.</p>
+    <p>Mendukung .xlsx, .xlsm, .xlsb, .xls, .ods, dan .csv. Warna, font, dan border terbaca untuk .xlsx/.xlsm; warna isi sel terbaca untuk .xls. File dibaca di browser dan tidak diunggah ke mana pun.</p>
     <button class="pri" id="open2">Pilih file</button>
   </div>
   <div id="ptitle"></div>
@@ -90,7 +90,7 @@ footer button{border-radius:6px 6px 0 0;white-space:nowrap}
 <input type="file" id="file" accept=".xlsx,.xlsm,.xlsb,.xls,.ods,.csv,.tsv" hidden>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 const $=s=>document.querySelector(s);
 let wb=null,cur=null,showF=false,limit=1000,zoom=1,hits=[],hi=-1,styles=null,THEME=null;
@@ -100,17 +100,11 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 const IDX='000000 FFFFFF FF0000 00FF00 0000FF FFFF00 FF00FF 00FFFF 000000 FFFFFF FF0000 00FF00 0000FF FFFF00 FF00FF 00FFFF 800000 008000 000080 808000 800080 008080 C0C0C0 808080 9999FF 993366 FFFFCC CCFFFF 660066 FF8080 0066CC CCCCFF 000080 FF00FF FFFF00 00FFFF 800080 800000 008080 0000FF 00CCFF CCFFFF CCFFCC FFFF99 99CCFF FF99CC CC99FF FFCC99 3366FF 33CCCC 99CC00 FFCC00 FF9900 FF6600 666699 969696 003366 339966 003300 333300 993300 993366 333399 333333 000000 FFFFFF'.split(' ');
 const BW={thin:'1px solid',medium:'2px solid',thick:'3px solid',dashed:'1px dashed',dotted:'1px dotted',hair:'1px dotted',double:'3px double',mediumDashed:'2px dashed',dashDot:'1px dashed',mediumDashDot:'2px dashed',dashDotDot:'1px dashed',slantDashDot:'2px dashed',mediumDashDotDot:'2px dashed'};
 
-function themeColors(xw){
+function themeColors(xml){
   const def='FFFFFF 000000 E7E6E6 44546A 4472C4 ED7D31 A5A5A5 FFC000 5B9BD5 70AD47 0563C1 954F72'.split(' ');
-  try{
-    const th=xw._themes||(xw.model&&xw.model.themes);
-    const xml=th&&Object.values(th).find(v=>typeof v==='string');
-    if(xml){
-      const names=['lt1','dk1','lt2','dk2','accent1','accent2','accent3','accent4','accent5','accent6','hlink','folHlink'];
-      return names.map((n,i)=>{const m=xml.match(new RegExp('<a:'+n+'>[\\s\\S]*?(?:srgbClr val="|lastClr=")([0-9A-Fa-f]{6})'));return m?m[1]:def[i]});
-    }
-  }catch(e){}
-  return def;
+  if(!xml)return def;
+  const names=['lt1','dk1','lt2','dk2','accent1','accent2','accent3','accent4','accent5','accent6','hlink','folHlink'];
+  return names.map((n,i)=>{const m=xml.match(new RegExp('<a:'+n+'>[\\s\\S]*?(?:srgbClr val="|lastClr=")([0-9A-Fa-f]{6})'));return m?m[1]:def[i]});
 }
 function tint(hex,t){
   const r=parseInt(hex.slice(0,2),16)/255,g=parseInt(hex.slice(2,4),16)/255,b=parseInt(hex.slice(4,6),16)/255;
@@ -144,28 +138,54 @@ function cssOf(st){
   if(fl&&fl.type==='pattern'&&fl.pattern==='solid'){const b=rgbOf(fl.fgColor);if(b)o.push('background:'+b)}
   const H={left:'left',center:'center',right:'right',justify:'justify',centerContinuous:'center',fill:'left'};
   if(H[a.horizontal])o.push('text-align:'+H[a.horizontal]);
-  const V={top:'top',middle:'middle',bottom:'bottom'};
+  const V={top:'top',middle:'middle',center:'middle',bottom:'bottom'};
   if(V[a.vertical])o.push('vertical-align:'+V[a.vertical]);
   if(a.wrapText)o.push('white-space:normal;word-break:break-word;text-overflow:clip');
   if(a.indent)o.push('padding-left:'+(4+a.indent*9)+'px');
   ['top','left','bottom','right'].forEach(k=>{const b=bd[k];if(b&&BW[b.style])o.push(`border-${k}:${BW[b.style]} ${rgbOf(b.color)||'#000'}`)});
   return {css:o.join(';'),wrap:!!a.wrapText};
 }
-function buildStyles(xw){
-  THEME=themeColors(xw);
-  const ids=new Map(),rules=[],res={};
-  xw.worksheets.forEach(ws=>{
-    const m={},wr=new Set(),v=(ws.views&&ws.views[0])||{},p=ws.properties||{};
-    ws.eachRow({includeEmpty:true},(row,rn)=>row.eachCell({includeEmpty:true},(cell,cn)=>{
-      const x=cssOf(cell.style||{});if(!x.css)return;
-      let i=ids.get(x.css);
-      if(i==null){i=ids.size;ids.set(x.css,i);rules.push(`td.s${i}{${x.css}}`)}
-      m[(rn-1)+','+(cn-1)]=i;if(x.wrap)wr.add(i);
-    }));
-    res[ws.name]={m,wr,grid:v.showGridLines!==false,
-      x:v.state==='frozen'?(v.xSplit||0):0,y:v.state==='frozen'?(v.ySplit||0):0,
-      dw:p.defaultColWidth?p.defaultColWidth*7+5:64,dh:p.defaultRowHeight?p.defaultRowHeight*4/3:20};
-  });
+/* Baca gaya langsung dari XML xlsx (tanpa library tambahan selain JSZip) */
+async function buildStyles(buf){
+  if(!window.JSZip)throw new Error('JSZip gagal dimuat');
+  const z=await JSZip.loadAsync(buf);
+  const txt=async p=>{const f=z.file(p);return f?f.async('string'):null};
+  const dom=async p=>{const t=await txt(p);return t?new DOMParser().parseFromString(t,'application/xml'):null};
+  const A=(e,n)=>e?e.getAttribute(n):null;
+  const K=(e,t)=>e?[...e.children].find(c=>c.localName===t):null;
+  const on=e=>!!e&&A(e,'val')!=='0'&&A(e,'val')!=='false';
+  const col=e=>e?{argb:A(e,'rgb'),theme:e.hasAttribute('theme')?+A(e,'theme'):null,indexed:e.hasAttribute('indexed')?+A(e,'indexed'):null,tint:+(A(e,'tint')||0)}:null;
+  THEME=themeColors(await txt('xl/theme/theme1.xml'));
+  const sx=await dom('xl/styles.xml');
+  const kids=t=>[...((sx.getElementsByTagName(t)[0]||{children:[]}).children)];
+  const fonts=kids('fonts').map(f=>({bold:on(K(f,'b')),italic:on(K(f,'i')),strike:on(K(f,'strike')),
+    underline:!!K(f,'u')&&A(K(f,'u'),'val')!=='none',size:+A(K(f,'sz'),'val')||0,name:A(K(f,'name'),'val'),color:col(K(f,'color'))}));
+  const fills=kids('fills').map(f=>{const p=K(f,'patternFill');return p?{type:'pattern',pattern:A(p,'patternType'),fgColor:col(K(p,'fgColor'))}:{}});
+  const borders=kids('borders').map(b=>{const o={};
+    ['left','right','top','bottom'].forEach(k=>{const e=K(b,k);if(e&&A(e,'style'))o[k]={style:A(e,'style'),color:col(K(e,'color'))}});return o});
+  const xfs=kids('cellXfs').map(x=>{const a=K(x,'alignment');return{font:fonts[+A(x,'fontId')],fill:fills[+A(x,'fillId')],border:borders[+A(x,'borderId')],
+    alignment:a?{horizontal:A(a,'horizontal'),vertical:A(a,'vertical'),wrapText:['1','true'].includes(A(a,'wrapText')),indent:+A(a,'indent')||0}:{}}});
+  const wbx=await dom('xl/workbook.xml'),rl=await dom('xl/_rels/workbook.xml.rels'),rel={};
+  [...rl.getElementsByTagName('Relationship')].forEach(r=>rel[A(r,'Id')]=A(r,'Target'));
+  const ids=new Map(),rules=[],xc={},wrap=new Set(),res={};
+  for(const sh of wbx.getElementsByTagName('sheet')){
+    const rid=sh.getAttribute('r:id')||([...sh.attributes].find(a=>a.localName==='id')||{}).value;
+    let tg=rel[rid];if(!tg)continue;tg=tg.startsWith('/')?tg.slice(1):'xl/'+tg;
+    const d=await dom(tg);if(!d)continue;
+    const m={},vw=d.getElementsByTagName('sheetView')[0],pn=d.getElementsByTagName('pane')[0],fp=d.getElementsByTagName('sheetFormatPr')[0];
+    for(const c of d.getElementsByTagName('c')){
+      const si=+A(c,'s');if(!si)continue;
+      if(xc[si]===undefined){
+        const o=cssOf(xfs[si]||{});
+        if(!o.css)xc[si]=-1;else{let i=ids.get(o.css);if(i==null){i=ids.size;ids.set(o.css,i);rules.push(`td.s${i}{${o.css}}`)}xc[si]=i;if(o.wrap)wrap.add(i)}
+      }
+      if(xc[si]>=0){const a=XLSX.utils.decode_cell(A(c,'r'));m[a.r+','+a.c]=xc[si]}
+    }
+    const fz=pn&&A(pn,'state')==='frozen';
+    res[A(sh,'name')]={m,wr:wrap,grid:!(vw&&['0','false'].includes(A(vw,'showGridLines'))),
+      x:fz?(+A(pn,'xSplit')||0):0,y:fz?(+A(pn,'ySplit')||0):0,
+      dw:fp&&A(fp,'defaultColWidth')?A(fp,'defaultColWidth')*7+5:64,dh:fp&&A(fp,'defaultRowHeight')?A(fp,'defaultRowHeight')*4/3:20};
+  }
   $('#cs').textContent=rules.join('\n');
   return res;
 }
@@ -175,12 +195,12 @@ async function openFile(f){
   let buf;
   try{
     buf=await f.arrayBuffer();
-    wb=XLSX.read(buf,{cellDates:true,cellFormula:true,cellNF:true,cellStyles:true});
+    wb=XLSX.read(buf,{cellDates:true,cellFormula:true,cellNF:true,cellStyles:true,sheetStubs:true});
   }catch(e){alert('File tidak bisa dibaca: '+e.message);return}
-  styles=null;$('#cs').textContent='';
-  if(/\.(xlsx|xlsm)$/i.test(f.name)&&window.ExcelJS){
-    try{const xw=new ExcelJS.Workbook();await xw.xlsx.load(buf);styles=buildStyles(xw)}
-    catch(e){console.warn('Gaya sel tidak terbaca:',e)}
+  styles=null;$('#cs').textContent='';$('#warn').textContent='';
+  if(/\.(xlsx|xlsm)$/i.test(f.name)){
+    try{styles=await buildStyles(buf)}
+    catch(e){console.warn(e);$('#warn').textContent='Warna tidak terbaca: '+e.message}
   }
   $('#fn').textContent=f.name;document.title=f.name+' – Excel Viewer';
   $('#drop').hidden=true;$('#grid').hidden=false;$('#tabs').hidden=false;
@@ -233,7 +253,11 @@ function render(){
       const ov=cell&&cell.t==='s'&&t&&c<rg.e.c&&!(nx&&nx.v!=null&&nx.v!=='')&&!(S&&S.wr.has(si))&&!span[key];
       const cls=[cell&&cell.t==='n'&&!(showF&&cell.f)?'n':'',cell&&cell.t==='b'?'b':'',
         q&&t.toLowerCase().includes(q)?'hit':'',ov?'ov':'',(fr||fc)?'fz':'',si!=null?'s'+si:''].filter(Boolean).join(' ');
-      const st=(fr||fc)?` style="position:sticky;${fr?`top:${tp}px;`:''}${fc?`left:${left[c]}px;`:''}z-index:${fr&&fc?2:1}"`:'';
+      const xs=(!S&&cell&&cell.s&&cell.s.patternType==='solid'&&cell.s.fgColor&&cell.s.fgColor.rgb)?'background:#'+cell.s.fgColor.rgb:'';
+      const stl=[];
+      if(fr||fc){stl.push('position:sticky');if(fr)stl.push(`top:${tp}px`);if(fc)stl.push(`left:${left[c]}px`);stl.push(`z-index:${fr&&fc?2:1}`)}
+      if(xs)stl.push(xs);
+      const st=stl.length?` style="${stl.join(';')}"`:'';
       const sp=span[key]?` rowspan=${span[key][0]} colspan=${span[key][1]}`:'';
       h+=`<td${cls?` class="${cls}"`:''}${sp}${st}>${esc(t)}</td>`;
     }
